@@ -19,7 +19,7 @@ export default function RootLayout({
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <GradientBackground>
-            <div className="flex min-h-screen flex-col">
+            <div className="flex min-h-[100dvh] flex-col">
               <header className="p-4 absolute top-0 right-0 z-10">
                 <ModeToggle />
               </header>
