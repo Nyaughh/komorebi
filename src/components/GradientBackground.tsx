@@ -6,16 +6,16 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useTheme } from 'next-themes';
 
+interface GradientBackgroundProps {
+  className?: string;
+  children?: React.ReactNode;
+}
+
 const GradientShader = () => {
   const { viewport } = useThree();
   const meshRef = useRef<THREE.Mesh>(null);
-  const { theme, systemTheme } = useTheme();
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const dark = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
-    setIsDarkMode(dark);
-  }, [theme, systemTheme]);
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
 
   useFrame(({ clock }) => {
     const material = meshRef.current?.material as THREE.ShaderMaterial;
@@ -71,7 +71,7 @@ const GradientShader = () => {
   );
 };
 
-const GradientBackground: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const GradientBackground: React.FC<GradientBackgroundProps> = ({ className, children }) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

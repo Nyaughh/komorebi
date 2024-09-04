@@ -95,13 +95,23 @@ export default function Component() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   };
 
-  useEffect(scrollToBottom, [messages]);
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping]);
+
+  useEffect(() => {
+    // Scroll to bottom on initial render
+    scrollToBottom();
+  }, []);
 
   const sendMessageToGroq = async (message: string) => {
     const response = await fetch('/api/groq', {
@@ -141,22 +151,25 @@ export default function Component() {
 
   return (
     <div className={cn(
-      "flex flex-col h-[600px] max-w-md w-full min-w-[320px] mx-auto rounded-3xl overflow-hidden shadow-2xl border-4",
+      "flex flex-col h-[500px] w-full max-w-md mx-auto rounded-3xl overflow-hidden shadow-2xl border-4",
       theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-pink-200 border-white'
     )}>
-      <div className="text-center mb-4 pt-4">
-        <h1 className={`${pacifico.className} text-5xl font-bold drop-shadow-lg ${theme === 'dark' ? 'text-pink-300' : 'text-white'}`} style={{ textShadow: theme === 'dark' ? "3px 3px 0px #4B0082" : "3px 3px 0px #FF69B4" }}>
-          Komorebi
-        </h1>
-      </div>
+      <h1 className={cn(
+        pacifico.className,
+        "text-4xl font-bold drop-shadow-lg text-center py-3",
+        theme === 'dark' ? 'text-pink-300' : 'text-white'
+      )} style={{ textShadow: theme === 'dark' ? "2px 2px 0px #4B0082" : "2px 2px 0px #FF69B4" }}>
+        Komorebi
+      </h1>
       
-      <div className={cn("flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar relative", theme === 'dark' ? 'bg-gray-700' : 'bg-pink-100')}>
+      <div 
+        ref={chatContainerRef}
+        className={cn("flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar", theme === 'dark' ? 'bg-gray-700' : 'bg-pink-100')}
+      >
         {messages.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-center">
-            <p className="text-pink-400 text-lg font-semibold font-mono opacity-70">
-              Say hello to Komorebi!
-            </p>
-          </div>
+          <p className="text-pink-400 text-base font-semibold font-mono opacity-70 text-center">
+            Say hello to Komorebi!
+          </p>
         )}
         <AnimatePresence>
           {messages.map((message) => (
@@ -164,26 +177,20 @@ export default function Component() {
           ))}
         </AnimatePresence>
         {isTyping && (
-          <div className="flex items-center">
-            <div className={cn(
-              "rounded-full p-2 shadow-md inline-block",
-              theme === 'dark' ? 'bg-gray-600' : 'bg-white'
-            )}>
-              <TypingIndicator />
-            </div>
+          <div className={cn(
+            "rounded-full p-2 shadow-md inline-block",
+            theme === 'dark' ? 'bg-gray-600' : 'bg-white'
+          )}>
+            <TypingIndicator />
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
       
-      <motion.div 
-        className={cn(
-          "p-4 bg-opacity-50 backdrop-blur-sm",
-          theme === 'dark' ? 'bg-gray-700' : 'bg-white'
-        )}
-        initial={{ y: 50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
+      <div className={cn(
+        "p-3 bg-opacity-50 backdrop-blur-sm",
+        theme === 'dark' ? 'bg-gray-700' : 'bg-white'
+      )}>
         <div className="flex items-center gap-2">
           <Input
             placeholder="Type a cute message..."
@@ -191,25 +198,23 @@ export default function Component() {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             className={cn(
-              "flex-1 rounded-full border-2 placeholder-pink-300 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400 focus:outline-none",
+              "flex-1 rounded-full border-2 placeholder-pink-300 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400 focus:outline-none text-sm",
               theme === 'dark' ? 'bg-gray-800 text-gray-200 border-gray-600' : 'bg-pink-50 text-pink-800 border-pink-300'
             )}
           />
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button
-              onClick={handleSend}
-              className={cn(
-                "rounded-full shadow-sm p-2 border-2 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400",
-                theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-pink-300 border-gray-600' : 'bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300'
-              )}
-              size="icon"
-            >
-              <ArrowRight className="h-4 w-4" />
-              <span className="sr-only">Send</span>
-            </Button>
-          </motion.div>
+          <Button
+            onClick={handleSend}
+            className={cn(
+              "rounded-full shadow-sm p-1.5 border-2 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400",
+              theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-pink-300 border-gray-600' : 'bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300'
+            )}
+            size="icon"
+          >
+            <ArrowRight className="h-3 w-3" />
+            <span className="sr-only">Send</span>
+          </Button>
         </div>
-      </motion.div>
+      </div>
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
@@ -227,7 +232,7 @@ export default function Component() {
         }
         
         .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
+          width: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: rgba(255, 182, 193, 0.1);

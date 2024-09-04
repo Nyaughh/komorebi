@@ -36,15 +36,15 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${GeistSans.variable}`}>
-      <body>
+      <body className="overflow-hidden">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <GradientBackground>
-            <div className="flex min-h-[100dvh] flex-col">
+            <div className="flex h-screen flex-col">
               <header className="p-4 absolute top-0 right-0 z-10">
                 <ModeToggle />
               </header>
-              <main className="flex-1">
-                {children} {/* Remove TRPCReactProvider wrapper */}
+              <main className="flex-1 overflow-auto">
+                {children}
               </main>
             </div>
           </GradientBackground>
