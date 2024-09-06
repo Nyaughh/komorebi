@@ -40,12 +40,16 @@ const MessageBubble = ({ message, sender }: { message: string; sender: 'user' | 
       initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -50 }}
-      className="flex flex-col mb-4"
+      className="flex flex-col mb-4 w-full"
     >
-      <div className="flex items-center mb-1">
+      <div className={cn(
+        "flex items-center mb-1",
+        sender === 'user' ? 'flex-row-reverse' : 'flex-row'
+      )}>
         <StarIcon />
         <span className={cn(
-          "ml-2 px-3 py-1 text-white rounded-full text-sm font-bold",
+          "px-3 py-1 text-white rounded-full text-sm font-bold",
+          sender === 'user' ? 'mr-2' : 'ml-2',
           sender === 'user' 
             ? 'bg-pink-300' 
             : theme === 'dark' ? 'bg-purple-600' : 'bg-purple-400'
@@ -54,12 +58,18 @@ const MessageBubble = ({ message, sender }: { message: string; sender: 'user' | 
         </span>
       </div>
       <div className={cn(
-        "rounded-2xl p-3 shadow-md",
+        "rounded-2xl p-3 shadow-md w-full",
         sender === 'user' ? 'rounded-tr-none' : 'rounded-tl-none',
         theme === 'dark' ? 'bg-gray-600' : 'bg-white'
       )}>
-        <p className={theme === 'dark' ? 'text-gray-200' : 'text-purple-700'}>{message}</p>
-        <div className="flex justify-end items-center mt-1">
+        <p className={cn(
+          theme === 'dark' ? 'text-gray-200' : 'text-purple-700',
+          sender === 'user' ? 'text-right' : 'text-left'
+        )}>{message}</p>
+        <div className={cn(
+          "flex items-center mt-1",
+          sender === 'user' ? 'justify-start' : 'justify-end'
+        )}>
           <MoonIcon />
           <CloudIcon />
         </div>
