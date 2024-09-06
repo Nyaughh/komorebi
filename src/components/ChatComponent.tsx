@@ -4,10 +4,11 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from "@/components/ui/button"
 import { Input } from '@/components/ui/input'
-import { Send, Star, Moon, Cloud, Download, Heart, ArrowRight } from "lucide-react"
+import { Send, Star, Moon, Cloud, Download, Heart, ArrowRight, Settings, Check } from "lucide-react"
 import { Pacifico } from 'next/font/google'
 import { useTheme } from 'next-themes'
 import { cn } from "@/lib/utils"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const pacifico = Pacifico({
   weight: '400',
@@ -90,10 +91,75 @@ const TypingIndicator = () => {
   )
 }
 
+interface PromptSelectorProps {
+  onApplyPrompt: (prompt: string) => void;
+  currentPrompt: string;
+}
+
+const PromptSelector = ({ onApplyPrompt, currentPrompt }: PromptSelectorProps) => {
+  const { theme } = useTheme()
+  const [isOpen, setIsOpen] = useState(false)
+  const [tempCustomPrompt, setTempCustomPrompt] = useState(currentPrompt)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setTempCustomPrompt(currentPrompt)
+  }, [currentPrompt])
+
+  const handleCustomPromptDone = () => {
+    onApplyPrompt(tempCustomPrompt)
+    setIsOpen(false)
+  }
+
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="absolute top-4 right-4 transition-all text-pink-500 hover:text-pink-600 hover:scale-110 bg-transparent hover:bg-transparent">
+          <Settings className="h-6 w-6" />
+        </Button>
+      </DropdownMenuTrigger>
+      <AnimatePresence>
+        {isOpen && (
+          <DropdownMenuContent align="end" asChild forceMount>
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Input
+                  ref={inputRef}
+                  value={tempCustomPrompt}
+                  onChange={(e) => setTempCustomPrompt(e.target.value)}
+                  placeholder="Enter custom prompt..."
+                  className="mt-2 transition-all focus:ring-2 focus:ring-pink-500"
+                />
+                <Button
+                  onClick={handleCustomPromptDone}
+                  className="mt-2 w-full bg-pink-500 hover:bg-pink-600 text-white"
+                >
+                  Apply Prompt
+                </Button>
+              </motion.div>
+            </motion.div>
+          </DropdownMenuContent>
+        )}
+      </AnimatePresence>
+    </DropdownMenu>
+  )
+}
+
 export default function Component() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [currentPrompt, setCurrentPrompt] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
@@ -119,7 +185,7 @@ export default function Component() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message, messages: messages.slice(-5) }),
+      body: JSON.stringify({ message, messages: messages.slice(-5), customPrompt: currentPrompt }),
     });
     if (!response.ok) {
       const errorData = await response.json();
@@ -149,9 +215,15 @@ export default function Component() {
     }
   }
 
+  const handleApplyPrompt = (newPrompt: string) => {
+    setCurrentPrompt(newPrompt);
+    // Here you can add any additional logic to apply the new prompt
+    // For example, you might want to clear the chat history or send a message to the AI
+  }
+
   return (
     <div className={cn(
-      "flex flex-col h-[500px] w-full max-w-md mx-auto rounded-3xl overflow-hidden shadow-2xl border-4",
+      "flex flex-col h-[600px] w-full max-w-md mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 relative",
       theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-pink-200 border-white'
     )}>
       <h1 className={cn(
@@ -161,6 +233,8 @@ export default function Component() {
       )} style={{ textShadow: theme === 'dark' ? "2px 2px 0px #4B0082" : "2px 2px 0px #FF69B4" }}>
         Komorebi
       </h1>
+      
+      <PromptSelector onApplyPrompt={handleApplyPrompt} currentPrompt={currentPrompt} />
       
       <div 
         ref={chatContainerRef}
