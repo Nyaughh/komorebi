@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from "@/components/ui/button"
-import { Input } from '@/components/ui/input'
-import { Send, Star, Moon, Cloud, Download, Heart, ArrowRight, Settings, Check } from "lucide-react"
-import { Pacifico } from 'next/font/google'
-import { useTheme } from 'next-themes'
-import { cn } from "@/lib/utils"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from "@/components/ui/button";
+import { Input } from '@/components/ui/input';
+import { Send, Star, Moon, Cloud, Download, Heart, ArrowRight, Settings, Check } from "lucide-react";
+import { Pacifico } from 'next/font/google';
+import { useTheme } from 'next-themes';
+import { cn } from "@/lib/utils";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const pacifico = Pacifico({
   weight: '400',
@@ -31,9 +31,10 @@ type Message = {
   id: number;
   text: string;
   sender: 'user' | 'bot';
+  type?: 'text' | 'image';
 };
 
-const MessageBubble = ({ message, sender }: { message: string; sender: 'user' | 'bot' }) => {
+const MessageBubble = ({ message, sender, type }: { message: string; sender: 'user' | 'bot'; type?: 'text' | 'image' }) => {
   const { theme } = useTheme();
   return (
     <motion.div
@@ -62,10 +63,14 @@ const MessageBubble = ({ message, sender }: { message: string; sender: 'user' | 
         sender === 'user' ? 'rounded-tr-none' : 'rounded-tl-none',
         theme === 'dark' ? 'bg-gray-600' : 'bg-white'
       )}>
-        <p className={cn(
-          theme === 'dark' ? 'text-gray-200' : 'text-purple-700',
-          sender === 'user' ? 'text-right' : 'text-left'
-        )}>{message}</p>
+        {type === 'image' ? (
+          <img src={message} alt="Generated content" className="w-full h-auto rounded-lg" />
+        ) : (
+          <p className={cn(
+            theme === 'dark' ? 'text-gray-200' : 'text-purple-700',
+            sender === 'user' ? 'text-right' : 'text-left'
+          )}>{message}</p>
+        )}
         <div className={cn(
           "flex items-center mt-1",
           sender === 'user' ? 'justify-start' : 'justify-end'
@@ -170,6 +175,7 @@ export default function Component() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [currentPrompt, setCurrentPrompt] = useState("");
+  const [isImageGenerationContext, setIsImageGenerationContext] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
@@ -205,25 +211,60 @@ export default function Component() {
     return data.response;
   };
 
-  const handleSend = async () => {
-    if (input.trim()) {
-      const userMessage: Message = { id: messages.length + 1, text: input, sender: "user" };
-      setMessages(prev => [...prev, userMessage]);
-      setInput("");
-      setIsTyping(true);
+  const generateImage = async (query: string) => {
+    const response = await fetch('/api/huggingface', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to generate image');
+    }
+    const data = await response.json();
+    return data.imageUrl;
+  };
 
-      try {
-        const groqResponse = await sendMessageToGroq(input);
+ const handleSend = async () => {
+  if (input.trim()) {
+    const userMessage: Message = { id: messages.length + 1, text: input, sender: "user" };
+    setMessages(prev => [...prev, userMessage]);
+    setInput("");
+    setIsTyping(true);
+
+    try {
+      if (isImageGenerationContext) {
+        // We're already in an image generation context, so generate the image
+        const imageUrl = await generateImage(input);
         setIsTyping(false);
-        setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
-      } catch (error) {
-        console.error("Error getting response from Komorebi:", error);
-        setIsTyping(false);
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        setMessages(prev => [...prev, { id: prev.length + 1, text: `Error: ${errorMessage}`, sender: "bot" }]);
+        setMessages(prev => [...prev, { id: prev.length + 1, text: imageUrl, sender: "bot", type: "image" }]);
+        setIsImageGenerationContext(false); // Reset the context
+      } else {
+        // Determine if this is an image generation request
+        const intentResponse = await sendMessageToGroq(`Analyze the following message and determine if it's a request to generate an image or a regular text query. Respond with "IMAGE" only if the user explicitly asks to create, generate, or show an image. Otherwise, respond with "TEXT". Message: "${input}"`);
+        
+        if (intentResponse.trim().toUpperCase() === "IMAGE") {
+          setIsImageGenerationContext(true);
+          const groqResponse = await sendMessageToGroq(`The user wants to generate an image. Ask them what kind of image they want to generate. Be brief and cute in your response.`);
+          setIsTyping(false);
+          setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
+        } else {
+          const groqResponse = await sendMessageToGroq(input);
+          setIsTyping(false);
+          setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
+        }
       }
+    } catch (error) {
+      console.error("Error getting response from Komorebi:", error);
+      setIsTyping(false);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      setMessages(prev => [...prev, { id: prev.length + 1, text: `Error: ${errorMessage}`, sender: "bot" }]);
+      setIsImageGenerationContext(false); // Reset the context in case of error
     }
   }
+}
 
   const handleApplyPrompt = (newPrompt: string) => {
     setCurrentPrompt(newPrompt);
@@ -257,7 +298,7 @@ export default function Component() {
         )}
         <AnimatePresence>
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message.text} sender={message.sender} />
+            <MessageBubble key={message.id} message={message.text} sender={message.sender} type={message.type} />
           ))}
         </AnimatePresence>
         {isTyping && (

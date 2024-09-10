@@ -1,10 +1,12 @@
-import ChatComponent from "@/components/ChatComponent";
+import React from 'react';
+import ChatComponent from '@/components/ChatComponent';
 
-export default function Home() {
+const HomePage = () => {
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-        <ChatComponent />
-      
-    </main>
+    <div className="flex justify-center items-center h-screen">
+      <ChatComponent />
+    </div>
   );
-}
+};
+
+export default HomePage;
