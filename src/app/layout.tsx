@@ -41,7 +41,7 @@ export default function RootLayout({
           <GradientBackground>
             <div className="flex h-screen flex-col">
               <header className="p-4 absolute top-0 right-0 z-10">
-                <ModeToggle />
+                {/* <ModeToggle /> */}
               </header>
               <main className="flex-1 overflow-auto">
                 {children}

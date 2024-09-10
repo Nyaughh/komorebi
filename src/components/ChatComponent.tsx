@@ -1,5 +1,5 @@
 'use client'
-
+import { ModeToggle } from '@/components/ThemeToggle';
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
@@ -67,8 +67,7 @@ const MessageBubble = ({ message, sender, type }: { message: string; sender: 'us
           <img src={message} alt="Generated content" className="w-full h-auto rounded-lg" />
         ) : (
           <p className={cn(
-            theme === 'dark' ? 'text-gray-200' : 'text-purple-700',
-            sender === 'user' ? 'text-right' : 'text-left'
+            theme === 'dark' ? 'text-gray-200' : 'text-purple-700'
           )}>{message}</p>
         )}
         <div className={cn(
@@ -129,8 +128,9 @@ const PromptSelector = ({ onApplyPrompt, currentPrompt }: PromptSelectorProps) =
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="absolute top-4 right-4 transition-all text-pink-500 hover:text-pink-600 hover:scale-110 bg-transparent hover:bg-transparent">
-          <Settings className="h-6 w-6" />
+        <Button variant="ghost" size="icon" className="w-9 h-9 transition-all hover:text-pink-600 hover:scale-110 bg-transparent hover:bg-transparent">
+          <Settings className="h-[1.5rem] w-[1.5rem]" />
+          <span className="sr-only">Toggle settings</span>
         </Button>
       </DropdownMenuTrigger>
       <AnimatePresence>
@@ -175,7 +175,6 @@ export default function Component() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [currentPrompt, setCurrentPrompt] = useState("");
-  const [isImageGenerationContext, setIsImageGenerationContext] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
@@ -235,33 +234,23 @@ export default function Component() {
     setIsTyping(true);
 
     try {
-      if (isImageGenerationContext) {
-        // We're already in an image generation context, so generate the image
-        const imageUrl = await generateImage(input);
+      if (input.trim().toLowerCase().startsWith("/image")) {
+        // Image generation request
+        const imagePrompt = input.slice(6).trim(); // Remove "/image" from the input
+        const imageUrl = await generateImage(imagePrompt);
         setIsTyping(false);
         setMessages(prev => [...prev, { id: prev.length + 1, text: imageUrl, sender: "bot", type: "image" }]);
-        setIsImageGenerationContext(false); // Reset the context
       } else {
-        // Determine if this is an image generation request
-        const intentResponse = await sendMessageToGroq(`Analyze the following message and determine if it's a request to generate an image or a regular text query. Respond with "IMAGE" only if the user explicitly asks to create, generate, or show an image. Otherwise, respond with "TEXT". Message: "${input}"`);
-        
-        if (intentResponse.trim().toUpperCase() === "IMAGE") {
-          setIsImageGenerationContext(true);
-          const groqResponse = await sendMessageToGroq(`The user wants to generate an image. Ask them what kind of image they want to generate. Be brief and cute in your response.`);
-          setIsTyping(false);
-          setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
-        } else {
-          const groqResponse = await sendMessageToGroq(input);
-          setIsTyping(false);
-          setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
-        }
+        // Regular text query
+        const groqResponse = await sendMessageToGroq(input);
+        setIsTyping(false);
+        setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
       }
     } catch (error) {
       console.error("Error getting response from Komorebi:", error);
       setIsTyping(false);
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       setMessages(prev => [...prev, { id: prev.length + 1, text: `Error: ${errorMessage}`, sender: "bot" }]);
-      setIsImageGenerationContext(false); // Reset the context in case of error
     }
   }
 }
@@ -273,105 +262,109 @@ export default function Component() {
   }
 
   return (
-    <div className={cn(
-      "flex flex-col h-[600px] w-full max-w-md mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 relative",
-      theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-pink-200 border-white'
-    )}>
-      <h1 className={cn(
-        pacifico.className,
-        "text-4xl font-bold drop-shadow-lg text-center py-3",
-        theme === 'dark' ? 'text-pink-300' : 'text-white'
-      )} style={{ textShadow: theme === 'dark' ? "2px 2px 0px #4B0082" : "2px 2px 0px #FF69B4" }}>
-        Komorebi
-      </h1>
-      
-      <PromptSelector onApplyPrompt={handleApplyPrompt} currentPrompt={currentPrompt} />
-      
-      <div 
-        ref={chatContainerRef}
-        className={cn("flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar", theme === 'dark' ? 'bg-gray-700' : 'bg-pink-100')}
-      >
-        {messages.length === 0 && (
-          <p className="text-pink-400 text-base font-semibold font-mono opacity-70 text-center">
-            Say hello to Komorebi!
-          </p>
-        )}
-        <AnimatePresence>
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message.text} sender={message.sender} type={message.type} />
-          ))}
-        </AnimatePresence>
-        {isTyping && (
-          <div className={cn(
-            "rounded-full p-2 shadow-md inline-block",
-            theme === 'dark' ? 'bg-gray-600' : 'bg-white'
-          )}>
-            <TypingIndicator />
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-      
+    <div className="flex items-center justify-center min-h-screen w-full p-4">
       <div className={cn(
-        "p-3 bg-opacity-50 backdrop-blur-sm",
-        theme === 'dark' ? 'bg-gray-700' : 'bg-white'
+        "flex flex-col h-[600px] w-full mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 relative",
+        theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-pink-200 border-white'
       )}>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Type a cute message..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            className={cn(
-              "flex-1 rounded-full border-2 placeholder-pink-300 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400 focus:outline-none text-sm",
-              theme === 'dark' ? 'bg-gray-800 text-gray-200 border-gray-600' : 'bg-pink-50 text-pink-800 border-pink-300'
-            )}
-          />
-          <Button
-            onClick={handleSend}
-            className={cn(
-              "rounded-full shadow-sm p-1.5 border-2 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400",
-              theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-pink-300 border-gray-600' : 'bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300'
-            )}
-            size="icon"
-          >
-            <ArrowRight className="h-3 w-3" />
-            <span className="sr-only">Send</span>
-          </Button>
+        <div className="flex items-center justify-between px-3 py-2 text-pink-500">
+          <ModeToggle />
+          <h1 className={cn(
+            pacifico.className,
+            "text-4xl font-bold drop-shadow-lg text-center flex-grow",
+            theme === 'dark' ? 'text-pink-300' : 'text-white'
+          )} style={{ textShadow: theme === 'dark' ? "2px 2px 0px #4B0082" : "2px 2px 0px #FF69B4" }}>
+            Komorebi
+          </h1>
+          <PromptSelector onApplyPrompt={handleApplyPrompt} currentPrompt={currentPrompt} />
         </div>
+        
+        <div 
+          ref={chatContainerRef}
+          className={cn("flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar", theme === 'dark' ? 'bg-gray-700' : 'bg-pink-100')}
+        >
+          {messages.length === 0 && (
+            <p className="text-pink-400 text-base font-semibold font-mono opacity-70 text-center">
+              Say hello to Komorebi!
+            </p>
+          )}
+          <AnimatePresence>
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message.text} sender={message.sender} type={message.type} />
+            ))}
+          </AnimatePresence>
+          {isTyping && (
+            <div className={cn(
+              "rounded-full p-2 shadow-md inline-block",
+              theme === 'dark' ? 'bg-gray-600' : 'bg-white'
+            )}>
+              <TypingIndicator />
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+        
+        <div className={cn(
+          "p-3 bg-opacity-50 backdrop-blur-sm",
+          theme === 'dark' ? 'bg-gray-700' : 'bg-white'
+        )}>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Type a message..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              className={cn(
+                "flex-1 rounded-full border-2 placeholder-pink-300 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400 focus:outline-none text-sm",
+                theme === 'dark' ? 'bg-gray-800 text-gray-200 border-gray-600' : 'bg-pink-50 text-pink-800 border-pink-300'
+              )}
+            />
+            <Button
+              onClick={handleSend}
+              className={cn(
+                "rounded-full shadow-sm p-1.5 border-2 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400",
+                theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-pink-300 border-gray-600' : 'bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300'
+              )}
+              size="icon"
+            >
+              <ArrowRight className="h-3 w-3" />
+              <span className="sr-only">Send</span>
+            </Button>
+          </div>
+        </div>
+
+        <style jsx global>{`
+          @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
+          
+          /* Remove default focus styles */
+          *:focus {
+            outline: none !important;
+            box-shadow: none !important;
+          }
+
+          /* Custom focus styles for input */
+          input:focus {
+            border-color: #f472b6 !important; /* pink-400 */
+            box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.5) !important; /* pink-400 with opacity */
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 182, 193, 0.1);
+            border-radius: 10px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 105, 180, 0.5);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 105, 180, 0.8);
+          }
+        `}</style>
       </div>
-
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
-        
-        /* Remove default focus styles */
-        *:focus {
-          outline: none !important;
-          box-shadow: none !important;
-        }
-
-        /* Custom focus styles for input */
-        input:focus {
-          border-color: #f472b6 !important; /* pink-400 */
-          box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.5) !important; /* pink-400 with opacity */
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 182, 193, 0.1);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 105, 180, 0.5);
-          border-radius: 10px;
-          transition: all 0.3s ease;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 105, 180, 0.8);
-        }
-      `}</style>
     </div>
   )
 }
