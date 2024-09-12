@@ -3,7 +3,7 @@ import ChatComponent from '@/components/ChatComponent';
 
 const HomePage = () => {
   return (
-    <div className="flex justify-center items-center h-screen">
+    <div>
       <ChatComponent />
     </div>
   );

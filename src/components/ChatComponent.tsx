@@ -178,6 +178,10 @@ export default function Component() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
+  const [showSuggestion, setShowSuggestion] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputWidth, setInputWidth] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -211,49 +215,65 @@ export default function Component() {
   };
 
   const generateImage = async (query: string) => {
-    const response = await fetch('/api/huggingface', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query }),
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to generate image');
-    }
-    const data = await response.json();
-    return data.imageUrl;
-  };
-
- const handleSend = async () => {
-  if (input.trim()) {
-    const userMessage: Message = { id: messages.length + 1, text: input, sender: "user" };
-    setMessages(prev => [...prev, userMessage]);
-    setInput("");
-    setIsTyping(true);
-
     try {
-      if (input.trim().toLowerCase().startsWith("/image")) {
-        // Image generation request
-        const imagePrompt = input.slice(6).trim(); // Remove "/image" from the input
-        const imageUrl = await generateImage(imagePrompt);
-        setIsTyping(false);
-        setMessages(prev => [...prev, { id: prev.length + 1, text: imageUrl, sender: "bot", type: "image" }]);
+      const response = await fetch('/api/huggingface', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        // Response is JSON
+        const data = await response.json();
+        if (!data.imageUrl) {
+          console.error('Invalid response from Hugging Face API:', data);
+          throw new Error('Invalid response from image generation API');
+        }
+        return data.imageUrl;
       } else {
-        // Regular text query
-        const groqResponse = await sendMessageToGroq(input);
-        setIsTyping(false);
-        setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
+        // Response is not JSON, likely an error message
+        const text = await response.text();
+        console.error('Error response from Hugging Face API:', text);
+        throw new Error(`Failed to generate image: ${text}`);
       }
     } catch (error) {
-      console.error("Error getting response from Komorebi:", error);
-      setIsTyping(false);
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      setMessages(prev => [...prev, { id: prev.length + 1, text: `Error: ${errorMessage}`, sender: "bot" }]);
+      console.error('Error in generateImage:', error);
+      throw error;
+    }
+  };
+
+  const handleSend = async () => {
+    if (input.trim()) {
+      const userMessage: Message = { id: messages.length + 1, text: input, sender: "user" };
+      setMessages(prev => [...prev, userMessage]);
+      setInput("");
+      setIsTyping(true);
+      setShowSuggestion(false);
+
+      try {
+        if (input.trim().toLowerCase().startsWith("/image")) {
+          // Image generation request
+          const imagePrompt = input.slice(6).trim();
+          const imageUrl = await generateImage(imagePrompt);
+          setIsTyping(false);
+          setMessages(prev => [...prev, { id: prev.length + 1, text: imageUrl, sender: "bot", type: "image" }]);
+        } else {
+          // Regular text query
+          const groqResponse = await sendMessageToGroq(input);
+          setIsTyping(false);
+          setMessages(prev => [...prev, { id: prev.length + 1, text: groqResponse, sender: "bot" }]);
+        }
+      } catch (error) {
+        console.error("Error in handleSend:", error);
+        setIsTyping(false);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        setMessages(prev => [...prev, { id: prev.length + 1, text: `Error: ${errorMessage}`, sender: "bot" }]);
+      }
     }
   }
-}
 
   const handleApplyPrompt = (newPrompt: string) => {
     setCurrentPrompt(newPrompt);
@@ -261,10 +281,89 @@ export default function Component() {
     // For example, you might want to clear the chat history or send a message to the AI
   }
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInput(value);
+    if (value.endsWith('/')) {
+      setShowSuggestion(true);
+    } else {
+      setShowSuggestion(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Tab' && showSuggestion) {
+      e.preventDefault();
+      setInput('/image ');
+      setShowSuggestion(false);
+    } else if (e.key === 'Enter') {
+      handleSend();
+    }
+  };
+
+  useEffect(() => {
+    if (inputRef.current) {
+      setInputWidth(inputRef.current.offsetWidth);
+    }
+  }, []);
+
+  const handleSuggestionClick = () => {
+    setInput('/image ');
+    setShowSuggestion(false);
+    inputRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (showSuggestion) {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+          setShowSuggestion(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showSuggestion]);
+
+  useEffect(() => {
+    function setVH() {
+      let vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+
+    // Set VH immediately
+    setVH();
+
+    // Set it again after a short delay
+    setTimeout(setVH, 0);
+
+    // And again after a longer delay
+    setTimeout(setVH, 100);
+
+    // Set isLoaded to true after a short delay
+    const loadTimer = setTimeout(() => setIsLoaded(true), 100);
+
+    // Add event listeners
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', setVH);
+    document.addEventListener('touchmove', setVH);
+    document.addEventListener('scroll', setVH);
+
+    return () => {
+      window.removeEventListener('resize', setVH);
+      window.removeEventListener('orientationchange', setVH);
+      document.removeEventListener('touchmove', setVH);
+      document.removeEventListener('scroll', setVH);
+      clearTimeout(loadTimer);
+    };
+  }, []);
+
   return (
-    <div className="flex items-center justify-center min-h-screen w-full p-4">
+    <div className={`flex items-center justify-center w-full h-screen p-4 mobile-full-height ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}>
       <div className={cn(
-        "flex flex-col h-[600px] w-full mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 relative",
+        "flex flex-col w-full max-w-3xl mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 relative h-full",
         theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-pink-200 border-white'
       )}>
         <div className="flex items-center justify-between px-3 py-2 text-pink-500">
@@ -308,17 +407,42 @@ export default function Component() {
           "p-3 bg-opacity-50 backdrop-blur-sm",
           theme === 'dark' ? 'bg-gray-700' : 'bg-white'
         )}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 relative">
             <Input
+              ref={inputRef}
               placeholder="Type a message..."
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               className={cn(
                 "flex-1 rounded-full border-2 placeholder-pink-300 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:border-pink-400 focus:outline-none text-sm",
                 theme === 'dark' ? 'bg-gray-800 text-gray-200 border-gray-600' : 'bg-pink-50 text-pink-800 border-pink-300'
               )}
             />
+            <AnimatePresence>
+              {showSuggestion && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  transition={{ duration: 0.2 }}
+                  className={cn(
+                    "absolute left-0 bottom-full mb-2 px-3 py-1 rounded-md cursor-pointer text-sm shadow-sm",
+                    theme === 'dark' ? 'bg-gray-600 text-pink-300' : 'bg-pink-100 text-pink-800'
+                  )}
+                  onClick={handleSuggestionClick}
+                  style={{ width: `${inputWidth}px` }}
+                >
+                  <motion.span
+                    initial={{ scale: 1 }}
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                  >
+                    /image
+                  </motion.span>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <Button
               onClick={handleSend}
               className={cn(
@@ -362,6 +486,30 @@ export default function Component() {
           }
           .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 105, 180, 0.8);
+          }
+
+          .mobile-full-height {
+            height: 100vh; /* Fallback for browsers that do not support Custom Properties */
+            height: calc(var(--vh, 1vh) * 100);
+          }
+
+          /* Add this to ensure the body and html take full height */
+          html, body, #__next {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+          }
+
+          body {
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+          }
+
+          html {
+            height: -webkit-fill-available;
           }
         `}</style>
       </div>
